@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ArxLibertatisFTLConverter": {
+      "commandName": "Project",
+      "commandLineArgs": "\"F:\\Program Files\\Arx Libertatis\\paks\\game\\graph\\obj3d\\interactive\\npc\\sylib\\sylib.ftl\""
+    }
+  }
+}
