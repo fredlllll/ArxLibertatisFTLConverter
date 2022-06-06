@@ -57,7 +57,7 @@ namespace ArxLibertatisFTLConverter
         {
             string parentDir = Path.GetDirectoryName(file);
             string fileName = Path.GetFileNameWithoutExtension(file);
-            string outputDir = Path.Combine(parentDir, fileName + "_output");
+            string outputDir = Path.Combine(parentDir, fileName + "_FTLToOBJ");
             Directory.CreateDirectory(outputDir);
             string outputName = Path.Combine(outputDir, fileName + ".obj");
             string outputNameMTL = Path.Combine(outputDir, fileName + ".mtl");
