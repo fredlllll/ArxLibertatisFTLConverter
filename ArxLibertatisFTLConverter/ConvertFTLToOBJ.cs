@@ -1,5 +1,7 @@
 ﻿using ArxLibertatisEditorIO.RawIO.FTL;
 using ArxLibertatisEditorIO.Util;
+using CSWavefront.Raw;
+using CSWavefront.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -81,7 +83,7 @@ namespace ArxLibertatisFTLConverter
                 ftl.ReadFrom(s);
             }
 
-            Vector3[] baseVerts = new Vector3[ftl._3DDataSection.vertexList.Length];
+            Vector4[] baseVerts = new Vector4[ftl._3DDataSection.vertexList.Length];
             Vector3[] baseNorms = new Vector3[baseVerts.Length];
             Material[] materials = new Material[ftl._3DDataSection.textureContainers.Length];
 
@@ -89,7 +91,7 @@ namespace ArxLibertatisFTLConverter
             for (int i = 0; i < baseVerts.Length; ++i)
             {
                 var vert = ftl._3DDataSection.vertexList[i];
-                baseVerts[i] = new Vector3(vert.vert.x, -vert.vert.y, vert.vert.z);
+                baseVerts[i] = new Vector4(vert.vert.x, -vert.vert.y, vert.vert.z, 1);
                 baseNorms[i] = new Vector3(vert.norm.x, -vert.norm.y, vert.norm.z);
             }
 
@@ -123,6 +125,52 @@ namespace ArxLibertatisFTLConverter
                 materials[i] = mat;
             }
 
+            AutoDictionary<int, HashSet<string>> indexToGroup = new AutoDictionary<int, HashSet<string>>((x) => { return new HashSet<string>(); });
+
+            //groups
+            for (int i = 0; i < ftl._3DDataSection.groups.Length; ++i)
+            {
+                var g = ftl._3DDataSection.groups[i];
+                var name = IOHelper.GetStringSafe(g.group.name).Replace(' ', '_');
+                for (int j = 0; j < g.indices.Length; j++)
+                {
+                    indexToGroup[g.indices[j]].Add(name);
+                }
+            }
+
+            ObjFile obj = new ObjFile();
+            obj.vertices.AddRange(baseVerts);
+            obj.normals.AddRange(baseNorms);
+
+            for (int i = 0; i < ftl._3DDataSection.faceList.Length; ++i)
+            {
+                var face = ftl._3DDataSection.faceList[i];
+                HashSet<string> groups = new HashSet<string>();
+                var materialName = materials[face.texid].name;
+                ObjObject obje = obj.objects[materialName];
+
+                Polygon p = new Polygon();
+                p.hasNormals = true;
+                p.hasUvs = true;
+                for (int j = 0; j < 3; ++j)
+                {
+                    ushort baseVertIndex = face.vid[j];
+                    groups.UnionWith(indexToGroup[baseVertIndex]);
+
+                    PolygonVertex pv = new PolygonVertex();
+                    pv.vertex = baseVertIndex;
+                    pv.normal = baseVertIndex;
+                    pv.uv = obj.uvs.Count;
+
+                    obj.uvs.Add(new Vector3(face.u[j], 1 - face.v[j], 1));
+                    p.vertices.Add(pv);
+                }
+
+                obje.groupNames.UnionWith(groups);
+                obje.polygons[materialName].Add(p);
+            }
+
+
             Mesh mesh = new Mesh();
             //load faces
             for (int j = 0; j < ftl._3DDataSection.faceList.Length; ++j)
@@ -133,85 +181,15 @@ namespace ArxLibertatisFTLConverter
                 {
                     ushort baseVertIndex = face.vid[i];
 
-                    f.vertices[i] = baseVerts[baseVertIndex];
-                    f.normals[i] = baseVerts[baseVertIndex];
+                    //f.vertices[i] = baseVerts[baseVertIndex];
+                    //f.normals[i] = baseVerts[baseVertIndex];
                     f.uvs[i] = new Vector2(face.u[i], 1 - face.v[i]);
                 }
                 mesh.AddFace(face.texid, f);
             }
 
             //write out obj
-            IFormatProvider format = System.Globalization.CultureInfo.InvariantCulture;
-            string floatFormat = "0.00000";
-            using (var objStream = new FileStream(outputName, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-            using (StreamWriter sw = new StreamWriter(objStream))
-            {
-                var faceList = mesh.GetFaces();
-                sw.WriteLine("mtllib " + Path.GetFileName(outputNameMTL));
-
-                sw.WriteLine("o " + Path.GetFileNameWithoutExtension(file));
-                //write vertices
-                sw.WriteLine("# vertices");
-                for (int i = 0, vertIndex = 0; i < faceList.Count; ++i)
-                {
-                    for (int j = 0; j < 3; ++j)
-                    {
-                        var f = faceList[i];
-                        var v = f.vertices[j];
-                        sw.Write("v ");
-                        sw.Write(v.X.ToString(floatFormat, format) + " ");
-                        sw.Write(v.Y.ToString(floatFormat, format) + " ");
-                        sw.WriteLine(v.Z.ToString(floatFormat, format));
-
-                        //set index
-                        f.indices[j] = vertIndex++;
-                    }
-                }
-
-                //write texture coordinates
-                sw.WriteLine("# texture coordinates");
-                for (int i = 0; i < faceList.Count; ++i)
-                {
-                    for (int j = 0; j < 3; ++j)
-                    {
-                        var v = faceList[i].uvs[j];
-                        sw.Write("vt ");
-                        sw.Write(v.X.ToString(floatFormat, format) + " ");
-                        sw.WriteLine(v.Y.ToString(floatFormat, format));
-                    }
-                }
-
-                //write normals
-                sw.WriteLine("# normals");
-                for (int i = 0; i < faceList.Count; ++i)
-                {
-                    for (int j = 0; j < 3; ++j)
-                    {
-                        var v = faceList[i].vertices[j];
-                        sw.Write("vn ");
-                        sw.Write(v.X.ToString(floatFormat, format) + " ");
-                        sw.Write(v.Y.ToString(floatFormat, format) + " ");
-                        sw.WriteLine(v.Z.ToString(floatFormat, format));
-                    }
-                }
-
-                //write face data
-                for (int i = 0; i < materials.Length; ++i)
-                {
-                    var mat = materials[i];
-                    var matFaceList = mesh.GetFaceList(i);
-                    sw.WriteLine("usemtl " + mat.name);
-                    for (int j = 0; j < matFaceList.Count; ++j)
-                    {
-                        var f = matFaceList[j];
-                        sw.Write("f");
-                        int i1 = f.indices[0] + 1;
-                        int i2 = f.indices[1] + 1;
-                        int i3 = f.indices[2] + 1;
-                        sw.WriteLine($" {i1}/{i1}/{i1} {i3}/{i3}/{i3} {i2}/{i2}/{i2}");
-                    }
-                }
-            }
+            ObjSaver.Save(obj, outputName);
 
             //write out mtl
             using (var mtlStream = new FileStream(outputNameMTL, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
