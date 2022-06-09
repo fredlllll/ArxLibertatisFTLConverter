@@ -146,7 +146,11 @@ namespace ArxLibertatisFTLConverter
             {
                 var face = ftl._3DDataSection.faceList[i];
                 HashSet<string> groups = new HashSet<string>();
-                var materialName = materials[face.texid].name;
+                string materialName = "noMaterial";
+                if (face.texid >= 0)
+                {
+                    materialName = materials[face.texid].name;
+                }
                 ObjObject obje = obj.objects[materialName];
 
                 Polygon p = new Polygon();
