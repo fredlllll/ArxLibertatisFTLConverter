@@ -2,7 +2,7 @@
   "profiles": {
     "ArxLibertatisFTLConverter": {
       "commandName": "Project",
-      "commandLineArgs": "\"F:\\Program Files\\Arx Libertatis\\paks\\game\\graph\\obj3d\\interactive\\npc\\ratman_base\\ratman_base.ftl\""
+      "commandLineArgs": "\"F:\\Program Files\\Arx Libertatis\\paks\\npc_exports\\ratman_base_FTLToOBJ\\ratman_base.ftl\""
     }
   }
 }

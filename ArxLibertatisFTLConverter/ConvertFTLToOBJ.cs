@@ -16,45 +16,7 @@ namespace ArxLibertatisFTLConverter
             public string name;
             public string textureFile;
         }
-        private class Mesh
-        {
-            private Dictionary<int, List<Face>> faceData = new Dictionary<int, List<Face>>();
-            private List<Face> allFaces = new List<Face>();
 
-            public IReadOnlyList<Face> GetFaceList(int materialIndex)
-            {
-                if (!faceData.TryGetValue(materialIndex, out List<Face> faces))
-                {
-                    faces = new List<Face>();
-                    faceData[materialIndex] = faces;
-                }
-                return faces;
-            }
-
-            public void AddFace(int materialIndex, Face face)
-            {
-                if (!faceData.TryGetValue(materialIndex, out List<Face> faces))
-                {
-                    faces = new List<Face>();
-                    faceData[materialIndex] = faces;
-                }
-                faces.Add(face);
-                allFaces.Add(face);
-            }
-
-            public IReadOnlyList<Face> GetFaces()
-            {
-                return allFaces;
-            }
-        }
-
-        private class Face
-        {
-            public int[] indices = new int[3];
-            public Vector3[] vertices = new Vector3[3];
-            public Vector3[] normals = new Vector3[3];
-            public Vector2[] uvs = new Vector2[3];
-        }
         public static void Convert(string file)
         {
             string parentDir = Path.GetDirectoryName(file);
@@ -64,16 +26,14 @@ namespace ArxLibertatisFTLConverter
             string outputName = Path.Combine(outputDir, fileName + ".obj");
             string outputNameMTL = Path.Combine(outputDir, fileName + ".mtl");
             string gameDir = Util.GetParentWithName(parentDir, "game");
-            string dataDir = null;
             if (gameDir != null)
             {
-                dataDir = Path.GetDirectoryName(gameDir);
+                Settings.dataDir = Path.GetDirectoryName(gameDir);
             }
             else
             {
                 Console.WriteLine("could not find game dir");
             }
-
 
             FTL_IO ftl = new FTL_IO();
 
@@ -99,9 +59,9 @@ namespace ArxLibertatisFTLConverter
             for (int i = 0; i < materials.Length; ++i)
             {
                 var texConName = IOHelper.GetString(ftl._3DDataSection.textureContainers[i].name);
-                if (dataDir != null)
+                if (Settings.dataDir != null)
                 {
-                    string tmpName = Path.Combine(dataDir, Path.GetDirectoryName(texConName), Path.GetFileNameWithoutExtension(texConName));
+                    string tmpName = Path.Combine(Settings.dataDir, Path.GetDirectoryName(texConName), Path.GetFileNameWithoutExtension(texConName));
                     if (File.Exists(tmpName + ".jpg"))
                     {
                         texConName = tmpName + ".jpg";
@@ -153,18 +113,22 @@ namespace ArxLibertatisFTLConverter
                 }
                 ObjObject obje = obj.objects[materialName];
 
-                Polygon p = new Polygon();
-                p.hasNormals = true;
-                p.hasUvs = true;
+                Polygon p = new Polygon
+                {
+                    hasNormals = true,
+                    hasUvs = true
+                };
                 for (int j = 0; j < 3; ++j)
                 {
                     ushort baseVertIndex = face.vid[j];
                     groups.UnionWith(indexToGroup[baseVertIndex]);
 
-                    PolygonVertex pv = new PolygonVertex();
-                    pv.vertex = baseVertIndex;
-                    pv.normal = baseVertIndex;
-                    pv.uv = obj.uvs.Count;
+                    PolygonVertex pv = new PolygonVertex
+                    {
+                        vertex = baseVertIndex,
+                        normal = baseVertIndex,
+                        uv = obj.uvs.Count
+                    };
 
                     obj.uvs.Add(new Vector3(face.u[j], 1 - face.v[j], 1));
                     p.vertices.Add(pv);
@@ -174,45 +138,24 @@ namespace ArxLibertatisFTLConverter
                 obje.polygons[materialName].Add(p);
             }
 
-
-            Mesh mesh = new Mesh();
-            //load faces
-            for (int j = 0; j < ftl._3DDataSection.faceList.Length; ++j)
-            {
-                var face = ftl._3DDataSection.faceList[j];
-                var f = new Face();
-                for (int i = 0; i < 3; ++i)
-                {
-                    ushort baseVertIndex = face.vid[i];
-
-                    //f.vertices[i] = baseVerts[baseVertIndex];
-                    //f.normals[i] = baseVerts[baseVertIndex];
-                    f.uvs[i] = new Vector2(face.u[i], 1 - face.v[i]);
-                }
-                mesh.AddFace(face.texid, f);
-            }
-
             //write out obj
             ObjSaver.Save(obj, outputName);
 
-            //write out mtl
-            using (var mtlStream = new FileStream(outputNameMTL, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-            using (StreamWriter sw = new StreamWriter(mtlStream))
+            MtlFile mtl = new MtlFile();
+            for (int i = 0; i < materials.Length; ++i)
             {
-                for (int i = 0; i < materials.Length; ++i)
-                {
-                    var mat = materials[i];
-                    sw.WriteLine("newmtl " + mat.name);
-                    sw.WriteLine("Ka 0 0 0");
-                    sw.WriteLine("Kd 1 1 1");
-                    sw.WriteLine("Ks 0 0 0");
-                    sw.WriteLine("Ns 0");
-                    sw.WriteLine("d 1");
-                    sw.WriteLine("Tr 0");
-                    sw.WriteLine("illum 2");
-                    sw.WriteLine("map_Kd " + Path.GetFileName(mat.textureFile));
-                }
+                var myMat = materials[i];
+                var mat = mtl.materials[myMat.name];
+                mat.ambientColor = Vector3.Zero;
+                mat.diffuseColor = Vector3.One;
+                mat.specularColor = Vector3.Zero;
+                mat.specularFactor = 0;
+                mat.transparency = 0;
+                mat.illuminationModel = IlluminationModel.HighlightOn;
+                mat.diffuseMap = Path.GetFileName(myMat.textureFile);
             }
+            //write out mtl
+            MtlSaver.Save(mtl, outputNameMTL);
         }
     }
 }
