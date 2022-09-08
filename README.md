@@ -1,5 +1,5 @@
 # ArxLibertatisFTLConverter
-converts FTL files into common 3d files
+converts FTL files into wavefront object files, and vice versa 
 
 
 Compilation instructions:
