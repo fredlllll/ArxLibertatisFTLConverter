@@ -25,7 +25,7 @@ You should be able to build at this point.
 
 Usage Instructions:
 
-Before use you will have to supply the arx IO dll found in the bin directory of the game. "ArxLibertatisEditorIO.dll"
+Before use you will have to supply the arx IO dll found in the bin directory of the game. "ArxIO.dll"
 Copy this to the build directory
 ![image](https://user-images.githubusercontent.com/991507/189042280-2dc4e3b0-1240-45aa-a743-f14137784fc4.png)
 
