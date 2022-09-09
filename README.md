@@ -37,3 +37,12 @@ The converter is invoked from the command prompt, simply pass in a path for conv
 Note: For obj to ftl conversion, the game directory does not appear to be required
 
 
+When working from obj => ftl conversion, one must ensure the path to the correct texture is set in .mtl file. 
+
+For instance, if you are aiming to use the textures of the leather leggings, set the path accordingly:
+GRAPH\OBJ3D\TEXTURES\NPC_HUMAN_LEATHERBROWN_BODY.bmp
+
+![image](https://user-images.githubusercontent.com/991507/189280436-f391a1df-339e-43d5-a8aa-084ce0089e91.png)
+
+
+
