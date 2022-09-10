@@ -43,6 +43,9 @@ GRAPH\OBJ3D\TEXTURES\NPC_HUMAN_LEATHERBROWN_BODY.bmp
 
 Notes:
 For obj to ftl conversion, the game directory does not appear to be required
+
 Your obj mesh must be triangulated
+
 Consider using arxunpak.exe (located in the root directory of your liberatis install), for more model references
+
 .ftl files can be 'hotloaded' by quicksaving and quickloading, this does not appear to work for textures
