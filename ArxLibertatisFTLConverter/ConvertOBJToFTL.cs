@@ -140,6 +140,9 @@ namespace ArxLibertatisFTLConverter
                             ftlVert.ov = (short)(255 * ftlVert.v);
                             ftlVert.vertexIndex = (ushort)vertexIndex;
                         }
+                        var tmp = face.vertices[1];
+                        face.vertices[1] = face.vertices[2];
+                        face.vertices[2] = tmp;
                         face.normal = faceNormal / 3;
                         ftl.dataSection3D.faceList.Add(face);
                     }
