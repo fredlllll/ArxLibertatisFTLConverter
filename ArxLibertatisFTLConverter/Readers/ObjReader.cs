@@ -1,5 +1,4 @@
 ﻿using ArxLibertatisEditorIO.MediumIO.FTL;
-using ArxLibertatisEditorIO.RawIO.FTL;
 using ArxLibertatisEditorIO.Util;
 using CSWavefront.Raw;
 using CSWavefront.Util;
@@ -7,14 +6,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 
-namespace ArxLibertatisFTLConverter
+namespace ArxLibertatisFTLConverter.Readers
 {
-    public static class ConvertOBJToFTL
+    public class ObjReader : IModelReader
     {
+        public string FilePath { get; set; }
 
         static Vertex FromPolyVertex(ObjFile obj, PolygonVertex polyVertex)
         {
-            Vertex v = new Vertex();
+            Vertex v = new();
             Vector4 pos = obj.vertices[polyVertex.vertex];
             Vector3 norm = obj.normals[polyVertex.normal];
             v.vertex = new Vector3(pos.X, -pos.Y, pos.Z);
@@ -22,32 +22,35 @@ namespace ArxLibertatisFTLConverter
             return v;
         }
 
-        public static void Convert(string file)
+        public IntermediateModel Read()
         {
-            ObjFile obj = ObjLoader.Load(file);
-            var mtlFile = Path.Join(Path.GetDirectoryName(file), Path.GetFileNameWithoutExtension(file) + ".mtl");
-            var ftlFile = Path.Join(Path.GetDirectoryName(file), Path.GetFileNameWithoutExtension(file) + ".ftl");
-            MtlFile mtl = new MtlFile();
+            ObjFile obj = ObjLoader.Load(FilePath);
+            string fileName = Path.GetFileNameWithoutExtension(FilePath);
+            string dataDir = Path.GetDirectoryName(FilePath);
+            var mtlFile = Path.Join(dataDir, fileName + ".mtl");
+            MtlFile mtl = new();
             if (File.Exists(mtlFile))
             {
                 mtl = MtlLoader.Load(mtlFile);
             }
 
-            Ftl ftl = new Ftl();
+            Ftl ftl = new();
             ftl.dataSection3D = new DataSection3D();
-            ftl.dataSection3D.header.name = Path.GetFileNameWithoutExtension(file);
+            ftl.dataSection3D.header.name = fileName;
 
             //materials
-            List<Material> materials = new List<Material>();
-            AutoDictionary<string, int> materialNameToIndex = new AutoDictionary<string, int>((x) => { var mat = new Material(x) { diffuseMap = x }; materials.Add(mat); return materials.Count - 1; });
+            List<Material> materials = new();
+            AutoDictionary<string, int> materialNameToIndex = new((x) => { var mat = new Material(x) { diffuseMap = x }; materials.Add(mat); return materials.Count - 1; });
             foreach (var kv in mtl.materials)
             {
                 materials.Add(kv.Value);
                 materialNameToIndex[kv.Key] = materialNameToIndex.Count;
             }
 
+            EqualsAutoDictionary<Vertex, HashSet<string>> vertexToGroups = new(x => new HashSet<string>());
+
             //create set of all vertices
-            HashSet<Vertex> allVertices = new HashSet<Vertex>(new EqualsComparer<Vertex>());
+            HashSet<Vertex> allVertices = new(new EqualsComparer<Vertex>());
             foreach (var kv in obj.objects)
             {
                 var name = kv.Key;
@@ -66,16 +69,33 @@ namespace ArxLibertatisFTLConverter
                             Vertex v = FromPolyVertex(obj, objVert);
 
                             allVertices.Add(v);
+                            vertexToGroups[v].UnionWith(o.groupNames);
                         }
                     }
                 }
             }
+
+
             //create list of vertices and index lookup
-            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>(new EqualsComparer<Vertex>());
+            Dictionary<Vertex, int> vertexToIndex = new(new EqualsComparer<Vertex>());
             foreach (var v in allVertices)
             {
                 vertexToIndex[v] = ftl.dataSection3D.vertexList.Count;
                 ftl.dataSection3D.vertexList.Add(v);
+            }
+
+            //assign groups
+            AutoDictionary<string, List<int>> groups = new((x) => new List<int>());
+            foreach (var kv in vertexToIndex)
+            {
+                var v = kv.Key;
+                var vertIndex = kv.Value;
+
+                var group_names = vertexToGroups[v];
+                foreach (var group_name in group_names)
+                {
+                    groups[group_name].Add(vertIndex);
+                }
             }
 
             //create face list
@@ -93,7 +113,7 @@ namespace ArxLibertatisFTLConverter
                     for (int i = 0; i < polygons.Count; ++i)
                     {
                         var polygon = polygons[i];
-                        var face = new Face();
+                        Face face = new();
                         face.textureContainerIndex = (short)matIndex;
 
                         var faceNormal = Vector3.Zero;
@@ -116,9 +136,8 @@ namespace ArxLibertatisFTLConverter
                             ftlVert.ov = (short)(255 * ftlVert.v);
                             ftlVert.vertexIndex = (ushort)vertexIndex;
                         }
-                        var tmp = face.vertices[1];
-                        face.vertices[1] = face.vertices[2];
-                        face.vertices[2] = tmp;
+                        //swap vertex order
+                        //(face.vertices[2], face.vertices[1]) = (face.vertices[1], face.vertices[2]);
                         face.normal = faceNormal / 3;
                         ftl.dataSection3D.faceList.Add(face);
                     }
@@ -131,18 +150,26 @@ namespace ArxLibertatisFTLConverter
                 ftl.dataSection3D.textures.Add(materials[i].diffuseMap);
             }
 
-            FTL_IO rawFtl = new FTL_IO();
-            ftl.SaveTo(rawFtl);
-            using (var ms = new MemoryStream())
+            //add groups to ftl
+            foreach (var kv in groups)
             {
-                rawFtl.WriteTo(ms);
-                var packed = FTL_IO.EnsurePacked(ms);
-                using (var fs = new FileStream(ftlFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+                var g = new ArxLibertatisEditorIO.MediumIO.FTL.Group
                 {
-                    packed.CopyTo(fs);
-                }
-                packed.Dispose();
+                    name = kv.Key,
+                    indexes = 0, //no idea
+                    origin = 0, //TODO: calculate which vertex is most center?
+                    blobShadowSize = 0, //calculate from size of mesh? only one per model?
+                    indices = kv.Value.ToArray()
+                };
+
+                ftl.dataSection3D.groups.Add(g);
             }
+
+            return new IntermediateModel()
+            {
+                Ftl = ftl,
+                DataDir = dataDir,
+            };
         }
     }
 }

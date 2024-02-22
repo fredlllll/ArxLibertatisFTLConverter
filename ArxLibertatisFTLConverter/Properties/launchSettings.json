@@ -1,8 +1,24 @@
 {
   "profiles": {
-    "ArxLibertatisFTLConverter": {
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    },
+    "ArxLibertatisFTLConverter ftl to obj": {
       "commandName": "Project",
-      "commandLineArgs": "\"F:\\Program Files\\Arx Libertatis\\paks\\npc_exports\\ratman_base_FTLToOBJ\\ratman_base.ftl\""
+      "commandLineArgs": "-i \"F:\\Program Files\\Arx Libertatis\\game\\graph\\obj3d\\interactive\\fix_inter\\jail_wood_grid\\jail_wood_grid.original.ftl\" -o jail_wood_grid.obj"
+    },
+    "obj to ftl": {
+      "commandName": "Project",
+      "commandLineArgs": "-i \"jail_wood_grid.obj\" -o \"F:\\Program Files\\Arx Libertatis\\game\\graph\\obj3d\\interactive\\fix_inter\\jail_wood_grid\\jail_wood_grid.ftl\""
+    },
+    "ftl to obj": {
+      "commandName": "Project",
+      "commandLineArgs": "-i \"F:\\Program Files\\Arx Libertatis\\game\\graph\\obj3d\\interactive\\fix_inter\\jail_wood_grid\\jail_wood_grid.ftl\" -o \"jail_wood_grid2.obj\""
+    },
+    "gltftest": {
+      "commandName": "Project",
+      "commandLineArgs": "-i \"C:\\Users\\Freddy\\Desktop\\untitled.glb\" -o \"gltftest.ftl\""
     }
   }
 }
